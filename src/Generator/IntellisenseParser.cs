@@ -328,6 +328,29 @@ namespace TypeScriptDefinitionGenerator
                         : null
                 };
 
+                if (isDictionary && codeClass.IsGeneric)
+                {
+                    var genArgs = TryToGuessDictionaryGenericArguments(rootElement, effectiveTypeRef);
+                    var keyRef = genArgs.keyRef;
+                    if(keyRef != null && keyRef.TypeKind == vsCMTypeRef.vsCMTypeRefCodeType && keyRef.CodeType.InfoLocation == vsCMInfoLocation.vsCMInfoLocationProject)
+                    {
+                        if (keyRef.CodeType is CodeClass2 cc2 && HasIntellisense(cc2.ProjectItem, references))
+                            result.DictionaryKeyTypeName = (GetNamespace(cc2) + "." + Utility.CamelCaseClassName(GetClassName(cc2)));
+                        if(keyRef.CodeType is CodeEnum ce2 && HasIntellisense(ce2.ProjectItem, references))
+                            result.DictionaryKeyTypeName = (GetNamespace(ce2) + "." + Utility.CamelCaseClassName(ce2.Name));
+                    }
+                    var valueRef = genArgs.valueRef;
+                    if (valueRef != null && valueRef.TypeKind == vsCMTypeRef.vsCMTypeRefCodeType && valueRef.CodeType.InfoLocation == vsCMInfoLocation.vsCMInfoLocationProject)
+                    {
+                        if (valueRef.CodeType is CodeClass2 cc2 && HasIntellisense(cc2.ProjectItem, references))
+                            result.DictionaryValueTypeName = (GetNamespace(cc2) + "." + Utility.CamelCaseClassName(GetClassName(cc2)));
+                        if (valueRef.CodeType is CodeEnum ce2 && HasIntellisense(ce2.ProjectItem, references))
+                            result.DictionaryValueTypeName = (GetNamespace(ce2) + "." + Utility.CamelCaseClassName(ce2.Name));
+                    }
+
+                }
+
+
                 if (!isPrimitive && codeClass != null && !traversedTypes.Contains(effectiveTypeRef.CodeType.FullName) && !isCollection)
                 {
                     traversedTypes.Add(effectiveTypeRef.CodeType.FullName);
@@ -380,6 +403,51 @@ namespace TypeScriptDefinitionGenerator
             }
 
             return codeTypeRef;
+        }
+
+        private static (CodeTypeRef keyRef, CodeTypeRef valueRef) TryToGuessDictionaryGenericArguments(CodeClass rootElement, CodeTypeRef codeTypeRef)
+        {
+            var codeTypeRef2 = codeTypeRef as CodeTypeRef2;
+            if (codeTypeRef2 == null || !codeTypeRef2.IsGeneric || !codeTypeRef2.IsGeneric)
+            {
+                // just avoid throw exception in VS plugin
+                return (null, null);
+            }
+
+            // There is no way to extract generic parameter as CodeTypeRef or something similar
+            // (see http://social.msdn.microsoft.com/Forums/vstudio/en-US/09504bdc-2b81-405a-a2f7-158fb721ee90/envdte-envdte80-codetyperef2-and-generic-types?forum=vsx)
+            // but we can make it work at least for some simple case with the following heuristic:
+            //  1) get the argument's local name by parsing the type reference's full text
+            //  2) if it's a known primitive (i.e. string, int, etc.), return that
+            //  3) otherwise, guess that it's a type from the same namespace and same project,
+            //     and use the project CodeModel to retrieve it by full name
+            //  4) if CodeModel returns null - well, bad luck, don't have any more guesses
+            var genString = codeTypeRef2.AsString.Split('<', '>').ElementAtOrDefault(1) ?? "";
+            var arr = genString.Split(',');
+            var keyTypeString = arr[0].Trim();
+            var valueTypeString = arr[1].Trim();
+            CodeModel projCodeModel;
+
+            try
+            {
+                projCodeModel = rootElement.ProjectItem.ContainingProject.CodeModel;
+            }
+            catch (COMException)
+            {
+                projCodeModel = _project.CodeModel;
+            }
+
+            CodeType keyCodeType = projCodeModel.CodeTypeFromFullName(TryToGuessFullName(keyTypeString));
+            CodeType valueCodeType = projCodeModel.CodeTypeFromFullName(TryToGuessFullName(valueTypeString));
+
+            if (keyCodeType != null && valueCodeType != null)
+            {
+                var keyRef = projCodeModel.CreateCodeTypeRef(keyCodeType);
+                var valueRef = projCodeModel.CreateCodeTypeRef(valueCodeType);
+                return (keyRef, valueRef);
+            }
+
+            return (null, null);
         }
 
         private static readonly Dictionary<string, Type> _knownPrimitiveTypes = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase) {

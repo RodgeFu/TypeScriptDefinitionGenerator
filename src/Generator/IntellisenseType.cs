@@ -33,6 +33,9 @@ namespace TypeScriptDefinitionGenerator
         /// </summary>
         public IEnumerable<IntellisenseProperty> Shape { get; set; }
 
+        public string DictionaryKeyTypeName { get; set; }
+        public string DictionaryValueTypeName { get; set; }
+
         public bool IsKnownType
         {
             get { return TypeScriptName != "any"; }
@@ -47,7 +50,7 @@ namespace TypeScriptDefinitionGenerator
             }
         }
 
-        private string GetTargetName(string codeName, bool js)
+        private string GetTargetName(string codeName, bool js, string defaultComplexTypeScriptName = null)
         {
             var t = codeName.ToLowerInvariant().TrimEnd('?');
             switch (t)
@@ -77,28 +80,23 @@ namespace TypeScriptDefinitionGenerator
                 case "boolean":
                     return js ? "Boolean" : "boolean";
             }
-            return js ? "Object" : GetComplexTypeScriptName();
+            return js ? "Object" : GetComplexTypeScriptName(defaultComplexTypeScriptName);
         }
 
-        private string GetComplexTypeScriptName()
+        private string GetComplexTypeScriptName(string defaultComplexTypeScriptName = null)
         {
-            return ClientSideReferenceName ?? "any";
+            return string.IsNullOrEmpty(defaultComplexTypeScriptName) ? (ClientSideReferenceName ?? "any") : defaultComplexTypeScriptName;
         }
 
         private string GetKVPTypes()
         {
             var type = CodeName.ToLowerInvariant().TrimEnd('?');
             var types = type.Split('<', '>')[1].Split(',');
-            string keyType = GetTargetName(types[0].Trim(), false);
+            string keyType = GetTargetName(types[0].Trim(), false, this.DictionaryKeyTypeName);
 
-            if (keyType != "string" && keyType != "number")
-            { // only string or number are allowed for keys
-                keyType = "string";
-            }
+            string valueType = GetTargetName(types[1].Trim(), false, this.DictionaryValueTypeName);
 
-            string valueType = GetTargetName(types[1].Trim(), false);
-
-            return string.Format(CultureInfo.CurrentCulture, "{{ [index: {0}]: {1} }}", keyType, valueType);
+            return string.Format(CultureInfo.CurrentCulture, "Map<{0}, {1}>", keyType, valueType);
         }
     }
 }
