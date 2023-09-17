@@ -96,7 +96,7 @@ namespace TypeScriptDefinitionGenerator
 
             string valueType = GetTargetName(types[1].Trim(), false, this.DictionaryValueTypeName);
 
-            return string.Format(CultureInfo.CurrentCulture, "Map<{0}, {1}>", keyType, valueType);
+            return string.Format(CultureInfo.CurrentCulture, "{{ [index: {0}]: {1} }}", keyType, valueType);
         }
     }
 }

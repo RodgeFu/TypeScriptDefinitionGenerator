@@ -127,7 +127,7 @@ namespace TypeScriptDefinitionGenerator
             foreach (IntellisenseProperty p in props)
             {
                 WriteTypeScriptComment(p, sb);
-                sb.AppendFormat("{0}\t{1}: ", prefix, Utility.CamelCasePropertyName(p.NameWithOption));
+                sb.AppendFormat("{0}\t{1}?: ", prefix, Utility.CamelCasePropertyName(p.NameWithOption));
 
                 if (p.Type.IsKnownType)
                 {
